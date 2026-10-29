@@ -20,6 +20,7 @@
 #ifdef USE_WOLFSSL
 #include <wolfssl/options.h>
 #include <wolfssl/ssl.h>
+#include <wolfssl/error-ssl.h>
 #endif
 
 struct transport {
