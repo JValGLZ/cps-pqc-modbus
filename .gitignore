@@ -1,0 +1,6 @@
+bin/
+*.o
+__pycache__/
+certs/out/
+# keep results/raw/ in git (shared contract), but not scratch runs
+results/scratch/
