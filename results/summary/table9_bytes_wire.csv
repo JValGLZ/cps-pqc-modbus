@@ -1,0 +1,12 @@
+condition,kem,sig,c2s_bytes,s2c_bytes,total_bytes,host,date,method
+C1,x25519,ecdsa-p256,794,1054,1848,JOSPC-wsl2,2026-11-05,tcpdump lo; 10 per-poll conns; TCP payload/conn incl. 1 Modbus read
+C1,secp256r1,ecdsa-p256,827,1087,1914,JOSPC-wsl2,2026-11-05,same
+C2,kyber512,dilithium2,7466,7665,15131,JOSPC-wsl2,2026-11-05,same
+C2,kyber768,dilithium2,7850,7985,15835,JOSPC-wsl2,2026-11-05,same
+C2,kyber1024,dilithium2,8234,8465,16699,JOSPC-wsl2,2026-11-05,same
+C2,kyber512,dilithium3,9852,10051,19903,JOSPC-wsl2,2026-11-05,same
+C2,kyber768,dilithium3,10236,10371,20607,JOSPC-wsl2,2026-11-05,same
+C2,kyber1024,dilithium3,10620,10851,21471,JOSPC-wsl2,2026-11-05,same
+C2,kyber512,dilithium5,13096,13295,26391,JOSPC-wsl2,2026-11-05,same
+C2,kyber768,dilithium5,13480,13615,27095,JOSPC-wsl2,2026-11-05,same
+C2,kyber1024,dilithium5,13864,14095,27959,JOSPC-wsl2,2026-11-05,same
