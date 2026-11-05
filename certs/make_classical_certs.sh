@@ -15,8 +15,25 @@ case $ALG in
 esac
 DAYS=365
 newkey ca.key
-openssl req -x509 -new -key ca.key -sha256 -days $DAYS -subj "/CN=CPS Modbus Test CA" \
-  -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign" -out ca.pem
+# Use a minimal config so the system openssl.cnf's default v3_ca section
+# can't inject a second basicConstraints (OpenSSL 1.1.1 + -addext produced
+# a duplicate, which wolfSSL correctly rejects as ASN_OBJECT_ID_E / -144).
+CA_CNF=$(mktemp)
+cat > "$CA_CNF" <<'CNF'
+[req]
+distinguished_name = dn
+prompt = no
+x509_extensions = v3_ca_min
+[dn]
+CN = CPS Modbus Test CA
+[v3_ca_min]
+basicConstraints = critical,CA:TRUE
+keyUsage = critical,keyCertSign,cRLSign
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always
+CNF
+openssl req -x509 -new -key ca.key -sha256 -days $DAYS -config "$CA_CNF" -out ca.pem
+rm -f "$CA_CNF"
 for who in server client; do
   newkey $who.key
   openssl req -new -key $who.key -subj "/CN=modbus-$who" -out $who.csr
