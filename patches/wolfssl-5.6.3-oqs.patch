@@ -1,5 +1,5 @@
 diff --git a/wolfcrypt/src/asn.c b/wolfcrypt/src/asn.c
-index 3e00b1338e..505a631e46 100644
+index 3e00b1338e..9e0639a75e 100644
 --- a/wolfcrypt/src/asn.c
 +++ b/wolfcrypt/src/asn.c
 @@ -26827,7 +26827,7 @@ int SetName(byte* output, word32 outputSz, CertName* name)
@@ -50,17 +50,7 @@ index 3e00b1338e..505a631e46 100644
      }
      if ((ret >= 0) && (!dataASN[X509CERTASN_IDX_TBS_EXT_SEQ].noOut)) {
          /* Encode extensions into buffer. */
-@@ -29066,6 +29078,9 @@ static int EncodeCertReq(Cert* cert, DerCert* der, RsaKey* rsaKey,
-     }
- #endif
- #if defined(HAVE_DILITHIUM)
-+    fprintf(stderr, "DEBUG asn.c SetPublicKey: cert->keyType=%d dilithiumKey=%p L2=%d L3=%d L5=%d\n",
-+            cert->keyType, (void*)dilithiumKey,
-+            DILITHIUM_LEVEL2_KEY, DILITHIUM_LEVEL3_KEY, DILITHIUM_LEVEL5_KEY);
-     if ((cert->keyType == DILITHIUM_LEVEL2_KEY) ||
-         (cert->keyType == DILITHIUM_LEVEL3_KEY) ||
-         (cert->keyType == DILITHIUM_LEVEL5_KEY)) {
-@@ -29558,7 +29573,7 @@ static int MakeCertReq(Cert* cert, byte* derBuffer, word32 derSz,
+@@ -29558,7 +29570,7 @@ static int MakeCertReq(Cert* cert, byte* derBuffer, word32 derSz,
      if (ret >= 0) {
          /* Determine encode public key size. */
           ret = EncodePublicKey(cert->keyType, NULL, 0, rsaKey,
@@ -69,7 +59,7 @@ index 3e00b1338e..505a631e46 100644
           publicKeySz = (word32)ret;
      }
      if (ret >= 0) {
-@@ -29655,7 +29670,7 @@ static int MakeCertReq(Cert* cert, byte* derBuffer, word32 derSz,
+@@ -29655,7 +29667,7 @@ static int MakeCertReq(Cert* cert, byte* derBuffer, word32 derSz,
          ret = EncodePublicKey(cert->keyType,
              (byte*)dataASN[CERTREQBODYASN_IDX_SPUBKEYINFO_SEQ].data.buffer.data,
              (int)dataASN[CERTREQBODYASN_IDX_SPUBKEYINFO_SEQ].data.buffer.length,
