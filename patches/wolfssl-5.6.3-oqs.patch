@@ -1,0 +1,226 @@
+diff --git a/wolfcrypt/src/asn.c b/wolfcrypt/src/asn.c
+index 3e00b1338e..505a631e46 100644
+--- a/wolfcrypt/src/asn.c
++++ b/wolfcrypt/src/asn.c
+@@ -26827,7 +26827,7 @@ int SetName(byte* output, word32 outputSz, CertName* name)
+ static int EncodePublicKey(int keyType, byte* output, int outLen,
+                            RsaKey* rsaKey, ecc_key* eccKey,
+                            ed25519_key* ed25519Key, ed448_key* ed448Key,
+-                           DsaKey* dsaKey)
++                           DsaKey* dsaKey, dilithium_key* dilithiumKey)
+ {
+     int ret = 0;
+ 
+@@ -26837,8 +26837,20 @@ static int EncodePublicKey(int keyType, byte* output, int outLen,
+     (void)ed25519Key;
+     (void)ed448Key;
+     (void)dsaKey;
++    (void)dilithiumKey;
+ 
+     switch (keyType) {
++    #ifdef HAVE_DILITHIUM
++        case DILITHIUM_LEVEL2_KEY:
++        case DILITHIUM_LEVEL3_KEY:
++        case DILITHIUM_LEVEL5_KEY:
++            ret = wc_Dilithium_PublicKeyToDer(dilithiumKey, output,
++                                              (word32)outLen, 1);
++            if (ret <= 0) {
++                ret = PUBLIC_KEY_E;
++            }
++            break;
++    #endif /* HAVE_DILITHIUM */
+     #ifndef NO_RSA
+         case RSA_KEY:
+             ret = SetRsaPublicKey(output, rsaKey, outLen, 1);
+@@ -28547,7 +28559,7 @@ static int MakeAnyCert(Cert* cert, byte* derBuffer, word32 derSz,
+     if (ret >= 0) {
+         /* Calculate public key encoding size. */
+         ret = EncodePublicKey(cert->keyType, NULL, 0, rsaKey,
+-            eccKey, ed25519Key, ed448Key, dsaKey);
++            eccKey, ed25519Key, ed448Key, dsaKey, dilithiumKey);
+         publicKeySz = (word32)ret;
+     }
+     if (ret >= 0) {
+@@ -28711,7 +28723,7 @@ static int MakeAnyCert(Cert* cert, byte* derBuffer, word32 derSz,
+                            .data.buffer.data,
+             (int)dataASN[X509CERTASN_IDX_TBS_SPUBKEYINFO_SEQ]
+                            .data.buffer.length,
+-            rsaKey, eccKey, ed25519Key, ed448Key, dsaKey);
++            rsaKey, eccKey, ed25519Key, ed448Key, dsaKey, dilithiumKey);
+     }
+     if ((ret >= 0) && (!dataASN[X509CERTASN_IDX_TBS_EXT_SEQ].noOut)) {
+         /* Encode extensions into buffer. */
+@@ -29066,6 +29078,9 @@ static int EncodeCertReq(Cert* cert, DerCert* der, RsaKey* rsaKey,
+     }
+ #endif
+ #if defined(HAVE_DILITHIUM)
++    fprintf(stderr, "DEBUG asn.c SetPublicKey: cert->keyType=%d dilithiumKey=%p L2=%d L3=%d L5=%d\n",
++            cert->keyType, (void*)dilithiumKey,
++            DILITHIUM_LEVEL2_KEY, DILITHIUM_LEVEL3_KEY, DILITHIUM_LEVEL5_KEY);
+     if ((cert->keyType == DILITHIUM_LEVEL2_KEY) ||
+         (cert->keyType == DILITHIUM_LEVEL3_KEY) ||
+         (cert->keyType == DILITHIUM_LEVEL5_KEY)) {
+@@ -29558,7 +29573,7 @@ static int MakeCertReq(Cert* cert, byte* derBuffer, word32 derSz,
+     if (ret >= 0) {
+         /* Determine encode public key size. */
+          ret = EncodePublicKey(cert->keyType, NULL, 0, rsaKey,
+-             eccKey, ed25519Key, ed448Key, dsaKey);
++             eccKey, ed25519Key, ed448Key, dsaKey, NULL);
+          publicKeySz = (word32)ret;
+     }
+     if (ret >= 0) {
+@@ -29655,7 +29670,7 @@ static int MakeCertReq(Cert* cert, byte* derBuffer, word32 derSz,
+         ret = EncodePublicKey(cert->keyType,
+             (byte*)dataASN[CERTREQBODYASN_IDX_SPUBKEYINFO_SEQ].data.buffer.data,
+             (int)dataASN[CERTREQBODYASN_IDX_SPUBKEYINFO_SEQ].data.buffer.length,
+-            rsaKey, eccKey, ed25519Key, ed448Key, dsaKey);
++            rsaKey, eccKey, ed25519Key, ed448Key, dsaKey, NULL);
+     }
+     if ((ret >= 0 && derBuffer != NULL) &&
+             (!dataASN[CERTREQBODYASN_IDX_EXT_BODY].noOut)) {
+diff --git a/wolfcrypt/src/dilithium.c b/wolfcrypt/src/dilithium.c
+index d50b6db376..ce13cd5896 100644
+--- a/wolfcrypt/src/dilithium.c
++++ b/wolfcrypt/src/dilithium.c
+@@ -274,7 +274,7 @@ int wc_dilithium_export_public(dilithium_key* key,
+         return BAD_FUNC_ARG;
+     }
+ 
+-    if ((key->level != 1) && (key->level != 5)) {
++    if ((key->level != 2) && (key->level != 3) && (key->level != 5)) {
+         return BAD_FUNC_ARG;
+     }
+ 
+@@ -851,7 +851,7 @@ int wc_Dilithium_PublicKeyToDer(dilithium_key* key, byte* output, word32 inLen,
+     word32 pubKeyLen = (word32)sizeof(pubKey);
+     int    keytype = 0;
+ 
+-    if (key == NULL || output == NULL) {
++    if (key == NULL) {
+         return BAD_FUNC_ARG;
+     }
+ 
+diff --git a/wolfcrypt/src/sphincs.c b/wolfcrypt/src/sphincs.c
+index 2600b7754b..ef81a9fe47 100644
+--- a/wolfcrypt/src/sphincs.c
++++ b/wolfcrypt/src/sphincs.c
+@@ -76,22 +76,22 @@ int wc_sphincs_sign_msg(const byte* in, word32 inLen, byte* out, word32 *outLen,
+ 
+     if (ret == 0) {
+         if ((key->optim == FAST_VARIANT) && (key->level == 1)) {
+-            oqssig = OQS_SIG_new(OQS_SIG_alg_sphincs_shake256_128f_simple);
++            oqssig = OQS_SIG_new(OQS_SIG_alg_sphincs_shake_128f_simple);
+         }
+         else if ((key->optim == FAST_VARIANT) && (key->level == 3)) {
+-            oqssig = OQS_SIG_new(OQS_SIG_alg_sphincs_shake256_192f_simple);
++            oqssig = OQS_SIG_new(OQS_SIG_alg_sphincs_shake_192f_simple);
+         }
+         else if ((key->optim == FAST_VARIANT) && (key->level == 5)) {
+-            oqssig = OQS_SIG_new(OQS_SIG_alg_sphincs_shake256_256f_simple);
++            oqssig = OQS_SIG_new(OQS_SIG_alg_sphincs_shake_256f_simple);
+         }
+         else if ((key->optim == SMALL_VARIANT) && (key->level == 1)) {
+-            oqssig = OQS_SIG_new(OQS_SIG_alg_sphincs_shake256_128s_simple);
++            oqssig = OQS_SIG_new(OQS_SIG_alg_sphincs_shake_128s_simple);
+         }
+         else if ((key->optim == SMALL_VARIANT) && (key->level == 3)) {
+-            oqssig = OQS_SIG_new(OQS_SIG_alg_sphincs_shake256_192s_simple);
++            oqssig = OQS_SIG_new(OQS_SIG_alg_sphincs_shake_192s_simple);
+         }
+         else if ((key->optim == SMALL_VARIANT) && (key->level == 5)) {
+-            oqssig = OQS_SIG_new(OQS_SIG_alg_sphincs_shake256_256s_simple);
++            oqssig = OQS_SIG_new(OQS_SIG_alg_sphincs_shake_256s_simple);
+         }
+ 
+         if (oqssig == NULL) {
+@@ -183,22 +183,22 @@ int wc_sphincs_verify_msg(const byte* sig, word32 sigLen, const byte* msg,
+ 
+     if (ret == 0) {
+         if ((key->optim == FAST_VARIANT) && (key->level == 1)) {
+-            oqssig = OQS_SIG_new(OQS_SIG_alg_sphincs_shake256_128f_simple);
++            oqssig = OQS_SIG_new(OQS_SIG_alg_sphincs_shake_128f_simple);
+         }
+         else if ((key->optim == FAST_VARIANT) && (key->level == 3)) {
+-            oqssig = OQS_SIG_new(OQS_SIG_alg_sphincs_shake256_192f_simple);
++            oqssig = OQS_SIG_new(OQS_SIG_alg_sphincs_shake_192f_simple);
+         }
+         else if ((key->optim == FAST_VARIANT) && (key->level == 5)) {
+-            oqssig = OQS_SIG_new(OQS_SIG_alg_sphincs_shake256_256f_simple);
++            oqssig = OQS_SIG_new(OQS_SIG_alg_sphincs_shake_256f_simple);
+         }
+         else if ((key->optim == SMALL_VARIANT) && (key->level == 1)) {
+-            oqssig = OQS_SIG_new(OQS_SIG_alg_sphincs_shake256_128s_simple);
++            oqssig = OQS_SIG_new(OQS_SIG_alg_sphincs_shake_128s_simple);
+         }
+         else if ((key->optim == SMALL_VARIANT) && (key->level == 3)) {
+-            oqssig = OQS_SIG_new(OQS_SIG_alg_sphincs_shake256_192s_simple);
++            oqssig = OQS_SIG_new(OQS_SIG_alg_sphincs_shake_192s_simple);
+         }
+         else if ((key->optim == SMALL_VARIANT) && (key->level == 5)) {
+-            oqssig = OQS_SIG_new(OQS_SIG_alg_sphincs_shake256_256s_simple);
++            oqssig = OQS_SIG_new(OQS_SIG_alg_sphincs_shake_256s_simple);
+         }
+ 
+         if (oqssig == NULL) {
+diff --git a/wolfssl/wolfcrypt/asn.h b/wolfssl/wolfcrypt/asn.h
+index 24d8362c8b..58184c4a3a 100644
+--- a/wolfssl/wolfcrypt/asn.h
++++ b/wolfssl/wolfcrypt/asn.h
+@@ -922,7 +922,15 @@ enum Misc_ASN {
+     MIN_DATE_SIZE       =  12,
+     MAX_DATE_SIZE       =  32,
+     ASN_GEN_TIME_SZ     =  15,     /* 7 numbers * 2 + Zulu tag */
+-#ifndef NO_RSA
++#if defined(HAVE_DILITHIUM)
++    /* wolfSSL's classical-key sizing below (RSA/ECC/Curve448) never
++     * accounted for post-quantum signatures. Dilithium5's raw signature
++     * is 4595 bytes, far past the 512-1024 bytes sized for RSA up to
++     * 8192 bits. Give Dilithium priority here when compiled in -- this
++     * literal (not a dilithium.h constant) avoids a header include
++     * cycle, since dilithium.h itself depends on asn.h/asn_public.h. */
++    MAX_ENCODED_SIG_SZ  = 4595,    /* Dilithium5 raw signature size */
++#elif !defined(NO_RSA)
+ #ifdef WOLFSSL_HAPROXY
+     MAX_ENCODED_SIG_SZ  = 1024,    /* Supports 8192 bit keys */
+ #else
+diff --git a/wolfssl/wolfcrypt/sphincs.h b/wolfssl/wolfcrypt/sphincs.h
+index c1f558f963..5ad961a263 100644
+--- a/wolfssl/wolfcrypt/sphincs.h
++++ b/wolfssl/wolfcrypt/sphincs.h
+@@ -51,23 +51,23 @@
+ 
+ #ifdef HAVE_LIBOQS
+ 
+-#define SPHINCS_FAST_LEVEL1_SIG_SIZE     OQS_SIG_sphincs_shake256_128f_simple_length_signature
+-#define SPHINCS_FAST_LEVEL3_SIG_SIZE     OQS_SIG_sphincs_shake256_192f_simple_length_signature
+-#define SPHINCS_FAST_LEVEL5_SIG_SIZE     OQS_SIG_sphincs_shake256_256f_simple_length_signature
+-#define SPHINCS_SMALL_LEVEL1_SIG_SIZE    OQS_SIG_sphincs_shake256_128s_simple_length_signature
+-#define SPHINCS_SMALL_LEVEL3_SIG_SIZE    OQS_SIG_sphincs_shake256_192s_simple_length_signature
+-#define SPHINCS_SMALL_LEVEL5_SIG_SIZE    OQS_SIG_sphincs_shake256_256s_simple_length_signature
+-
+-#define SPHINCS_LEVEL1_KEY_SIZE     OQS_SIG_sphincs_shake256_128f_simple_length_secret_key
+-#define SPHINCS_LEVEL1_PUB_KEY_SIZE OQS_SIG_sphincs_shake256_128f_simple_length_public_key
++#define SPHINCS_FAST_LEVEL1_SIG_SIZE     OQS_SIG_sphincs_shake_128f_simple_length_signature
++#define SPHINCS_FAST_LEVEL3_SIG_SIZE     OQS_SIG_sphincs_shake_192f_simple_length_signature
++#define SPHINCS_FAST_LEVEL5_SIG_SIZE     OQS_SIG_sphincs_shake_256f_simple_length_signature
++#define SPHINCS_SMALL_LEVEL1_SIG_SIZE    OQS_SIG_sphincs_shake_128s_simple_length_signature
++#define SPHINCS_SMALL_LEVEL3_SIG_SIZE    OQS_SIG_sphincs_shake_192s_simple_length_signature
++#define SPHINCS_SMALL_LEVEL5_SIG_SIZE    OQS_SIG_sphincs_shake_256s_simple_length_signature
++
++#define SPHINCS_LEVEL1_KEY_SIZE     OQS_SIG_sphincs_shake_128f_simple_length_secret_key
++#define SPHINCS_LEVEL1_PUB_KEY_SIZE OQS_SIG_sphincs_shake_128f_simple_length_public_key
+ #define SPHINCS_LEVEL1_PRV_KEY_SIZE (SPHINCS_LEVEL1_PUB_KEY_SIZE+SPHINCS_LEVEL1_KEY_SIZE)
+ 
+-#define SPHINCS_LEVEL3_KEY_SIZE     OQS_SIG_sphincs_shake256_192f_simple_length_secret_key
+-#define SPHINCS_LEVEL3_PUB_KEY_SIZE OQS_SIG_sphincs_shake256_192f_simple_length_public_key
++#define SPHINCS_LEVEL3_KEY_SIZE     OQS_SIG_sphincs_shake_192f_simple_length_secret_key
++#define SPHINCS_LEVEL3_PUB_KEY_SIZE OQS_SIG_sphincs_shake_192f_simple_length_public_key
+ #define SPHINCS_LEVEL3_PRV_KEY_SIZE (SPHINCS_LEVEL3_PUB_KEY_SIZE+SPHINCS_LEVEL3_KEY_SIZE)
+ 
+-#define SPHINCS_LEVEL5_KEY_SIZE     OQS_SIG_sphincs_shake256_256f_simple_length_secret_key
+-#define SPHINCS_LEVEL5_PUB_KEY_SIZE OQS_SIG_sphincs_shake256_256f_simple_length_public_key
++#define SPHINCS_LEVEL5_KEY_SIZE     OQS_SIG_sphincs_shake_256f_simple_length_secret_key
++#define SPHINCS_LEVEL5_PUB_KEY_SIZE OQS_SIG_sphincs_shake_256f_simple_length_public_key
+ #define SPHINCS_LEVEL5_PRV_KEY_SIZE (SPHINCS_LEVEL5_PUB_KEY_SIZE+SPHINCS_LEVEL5_KEY_SIZE)
+ #endif
+ 
