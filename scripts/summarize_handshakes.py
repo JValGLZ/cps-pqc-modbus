@@ -8,6 +8,12 @@ Only single-slave rows count (n_servers absent or 1), and only measured cycles (
   scripts/summarize_handshakes.py                    # phase HS30 (scripts/run_handshake_batch.sh)
   scripts/summarize_handshakes.py --phase handshake  # the first 2026-11-05 runs
   scripts/summarize_handshakes.py --phase P2 --host JhonnyPC-wsl2
+  scripts/summarize_handshakes.py --phase LINK --metric ttfr   # emulated links (scripts/run_link_sweep.sh)
+
+--metric connect (default): TCP connect + TLS handshake as the client sees it.
+--metric ttfr: time to first Modbus response = connect + that cycle's poll_rtt. Use this on slow links:
+the client finishes its handshake before its own certificate flight has crossed the link, so the
+first request queues behind it and connect alone undercounts.
 """
 import argparse, csv, glob, os, re, statistics, sys
 from collections import defaultdict
@@ -22,6 +28,13 @@ def pct(xs, p):
     return xs[lo] + (xs[hi] - xs[lo]) * (k - lo)
 
 
+def note(notes, k):
+    for kv in notes.split(";"):
+        if kv.startswith(k + "="):
+            return kv.split("=", 1)[1]
+    return ""
+
+
 def single_slave(notes):
     for kv in notes.split(";"):
         if kv.startswith("n_servers="):
@@ -34,23 +47,32 @@ ap.add_argument("--phase", default="HS30", help="phase label to include (default
 ap.add_argument("--host")
 ap.add_argument("--date")
 ap.add_argument("--root", default="results/raw")
-ap.add_argument("--out", default="results/summary/table8_handshake.csv")
+ap.add_argument("--out", default=None, help="CSV path (default results/summary/table8_<phase>_<metric>.csv)")
+ap.add_argument("--metric", choices=["connect", "ttfr"], default="connect")
 a = ap.parse_args()
+a.out = a.out or f"results/summary/table8_{a.phase}_{a.metric}.csv"
 
 pat = os.path.join(a.root, a.host or "*", a.date or "*", "*.csv")
 pooled = defaultdict(list)
 per_run = defaultdict(lambda: defaultdict(list))
 for path in glob.glob(pat):
+    conn, rtt, keys = {}, {}, {}
     with open(path, newline="") as f:
         for r in csv.DictReader(f):
-            if r.get("phase") != a.phase or r.get("op") != "connect":
+            if r.get("phase") != a.phase or r.get("op") not in ("connect", "poll_rtt"):
                 continue
             if r.get("trial") == "0" or not single_slave(r.get("notes", "")):
                 continue
-            key = (r["host"], r["condition"], r["kem"], r["sig"])
-            v = float(r["value"])
-            pooled[key].append(v)
-            per_run[key][r["run_id"]].append(v)
+            t = (r["run_id"], r["trial"])
+            (conn if r["op"] == "connect" else rtt)[t] = float(r["value"])
+            keys[t] = (r["host"], note(r.get("notes", ""), "link"), r["condition"], r["kem"], r["sig"])
+    for t, c in conn.items():
+        if a.metric == "ttfr":
+            if t not in rtt:
+                continue
+            c += rtt[t]
+        pooled[keys[t]].append(c)
+        per_run[keys[t]][t[0]].append(c)
 
 if not pooled:
     sys.exit(f"no '{a.phase}' connect rows under {pat}")
@@ -62,10 +84,11 @@ def level(name):
     return int(d[-1]) if d else 0
 
 
-for key in sorted(pooled, key=lambda k: (k[0], order.get(k[1], 9), level(k[3]), level(k[2]), k[2])):
+links = {"": 0, "lan": 1, "wan": 2, "cell": 3, "serial115k": 4}
+for key in sorted(pooled, key=lambda k: (k[0], links.get(k[1], 9), order.get(k[2], 9), level(k[4]), level(k[3]), k[3])):
     xs = pooled[key]
     meds = [statistics.median(v) for v in per_run[key].values()]
-    rows.append(dict(host=key[0], condition=key[1], kem=key[2], sig=key[3], runs=len(meds), n=len(xs),
+    rows.append(dict(host=key[0], link=key[1], condition=key[2], kem=key[3], sig=key[4], runs=len(meds), n=len(xs),
                      p50=pct(xs, 50), p95=pct(xs, 95), p99=pct(xs, 99),
                      run_median_mean=statistics.mean(meds),
                      run_median_std=statistics.stdev(meds) if len(meds) > 1 else 0.0,
@@ -78,11 +101,15 @@ with open(a.out, "w", newline="") as f:
     for r in rows:
         w.writerow({k: f"{v:.4f}" if isinstance(v, float) else v for k, v in r.items()})
 
-print(f"Handshake latency (ms), phase {a.phase}: TCP connect + TLS 1.3 handshake, per-poll, 1 slave\n")
-print("| Host | Cond | KEM | Signature | runs | n | p50 | p95 | p99 | run-median mean ± std |")
-print("|---|---|---|---|---|---|---|---|---|---|")
+what = "TCP connect + TLS 1.3 handshake" if a.metric == "connect" else "time to first Modbus response (connect + first poll)"
+print(f"Handshake latency (ms), phase {a.phase}: {what}, per-poll, 1 slave\n")
+show_link = any(r["link"] for r in rows)
+lk = "Link | " if show_link else ""
+print(f"| Host | {lk}Cond | KEM | Signature | runs | n | p50 | p95 | p99 | run-median mean ± std |")
+print("|---|" + ("---|" if show_link else "") + "---|---|---|---|---|---|---|---|---|")
 for r in rows:
-    print(f"| {r['host']} | {r['condition']} | {r['kem']} | {r['sig']} | {r['runs']} | {r['n']} | "
+    lv = f"{r['link']} | " if show_link else ""
+    print(f"| {r['host']} | {lv}{r['condition']} | {r['kem']} | {r['sig']} | {r['runs']} | {r['n']} | "
           f"{r['p50']:.3f} | {r['p95']:.3f} | {r['p99']:.3f} | "
           f"{r['run_median_mean']:.3f} ± {r['run_median_std']:.3f} |")
 print(f"\nwritten: {a.out}")

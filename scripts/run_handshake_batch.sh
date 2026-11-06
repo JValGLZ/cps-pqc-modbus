@@ -42,11 +42,13 @@ done
 [ -x bin/mb_server ] && [ -x bin/mb_poll ] || { echo "build first: make TLS=1 ..." >&2; exit 1; }
 
 STAMP=$(date +%H%M%S)
+# record which wolfSSL build the binaries use (generic vs SP=1 optimized ECC) in every row
+WOLF=$(ldd bin/mb_poll | awk '/libwolfssl/{print $3}'); WOLF=$(basename "$(dirname "$(dirname "$WOLF")")")
 TMP=$(mktemp -d)
 trap 'pkill -f "mb_server --port $PORT" 2>/dev/null || true; rm -rf "$TMP"' EXIT
 
 npairs=$(wc -w <<<"$PAIRS")
-echo "== $PHASE: $RUNS runs x $COUNT handshakes x $npairs pairs, period ${PERIOD}ms, cpus srv=$SRV_CPU cli=$CLI_CPU =="
+echo "== $PHASE ($WOLF): $RUNS runs x $COUNT handshakes x $npairs pairs, period ${PERIOD}ms, cpus srv=$SRV_CPU cli=$CLI_CPU =="
 fails=0
 for r in $(seq 1 "$RUNS"); do
   for p in $PAIRS; do
@@ -59,7 +61,7 @@ for r in $(seq 1 "$RUNS"); do
     rid=$(printf "%s-%s-%s-%s-r%02d-%s" "$PHASE" "${cond^^}" "$kem" "$sig" "$r" "$STAMP")
     if ! timeout 300 bin/mb_poll --host 127.0.0.1 --port "$PORT" --cond "$cond" --kem "$kem" --sig "$sig" \
          --certs "$cd_" --session per-poll --count "$COUNT" --warmup "$WARMUP" --period-ms "$PERIOD" \
-         --cpu "$CLI_CPU" --phase "$PHASE" --run-id "$rid" --notes "run=$r;std=hs1" \
+         --cpu "$CLI_CPU" --phase "$PHASE" --run-id "$rid" --notes "run=$r;std=hs1;wolfssl=$WOLF" \
          --results-dir "$TMP" >"$TMP/last.log" 2>&1; then
       fails=$((fails + 1)); echo "  FAILED: run $r $cond $kem $sig"; tail -3 "$TMP/last.log"
     fi
