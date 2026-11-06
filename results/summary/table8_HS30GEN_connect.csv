@@ -1,0 +1,4 @@
+host,link,condition,kem,sig,runs,n,p50,p95,p99,run_median_mean,run_median_std,mean
+JOSPC-wsl2,,C1,p256,ecdsa-p256,10,1000,2.6817,3.2198,3.4943,2.6807,0.1343,2.7232
+JOSPC-wsl2,,C1,x25519,ecdsa-p256,10,1000,1.7386,2.0956,2.2925,1.7354,0.0985,1.7571
+JOSPC-wsl2,,C2,kyber768,dilithium3,10,1000,1.2861,1.6650,1.8828,1.2871,0.0825,1.3276

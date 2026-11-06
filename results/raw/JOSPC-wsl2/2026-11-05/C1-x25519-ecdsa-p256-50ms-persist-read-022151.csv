@@ -1,0 +1,12 @@
+run_id,host,phase,condition,kem,sig,op,trial,value,unit,bytes,notes,timestamp
+C1-x25519-ecdsa-p256-50ms-persist-read-022151,JOSPC-wsl2,P0,C1,x25519,ecdsa-p256,connect,0,1.690542,ms,,period_ms=50;deadline_ms=50;session=persistent;mb_op=read;qty=10;desc=TLSv1.3 TLS13-AES256-GCM-SHA384 group=X25519,2026-11-05T09:21:51.085935Z
+C1-x25519-ecdsa-p256-50ms-persist-read-022151,JOSPC-wsl2,P0,C1,x25519,ecdsa-p256,poll_rtt,1,0.110741,ms,41,period_ms=50;deadline_ms=50;session=persistent;mb_op=read;qty=10;status=0,2026-11-05T09:21:51.137827Z
+C1-x25519-ecdsa-p256-50ms-persist-read-022151,JOSPC-wsl2,P0,C1,x25519,ecdsa-p256,poll_resp,1,0.200362,ms,41,period_ms=50;deadline_ms=50;session=persistent;mb_op=read;qty=10;status=0;miss=0;wake_late_us=88.790,2026-11-05T09:21:51.137827Z
+C1-x25519-ecdsa-p256-50ms-persist-read-022151,JOSPC-wsl2,P0,C1,x25519,ecdsa-p256,poll_rtt,2,0.111606,ms,41,period_ms=50;deadline_ms=50;session=persistent;mb_op=read;qty=10;status=0,2026-11-05T09:21:51.187819Z
+C1-x25519-ecdsa-p256-50ms-persist-read-022151,JOSPC-wsl2,P0,C1,x25519,ecdsa-p256,poll_resp,2,0.192422,ms,41,period_ms=50;deadline_ms=50;session=persistent;mb_op=read;qty=10;status=0;miss=0;wake_late_us=80.345,2026-11-05T09:21:51.187819Z
+C1-x25519-ecdsa-p256-50ms-persist-read-022151,JOSPC-wsl2,P0,C1,x25519,ecdsa-p256,poll_rtt,3,0.141749,ms,41,period_ms=50;deadline_ms=50;session=persistent;mb_op=read;qty=10;status=0,2026-11-05T09:21:51.237858Z
+C1-x25519-ecdsa-p256-50ms-persist-read-022151,JOSPC-wsl2,P0,C1,x25519,ecdsa-p256,poll_resp,3,0.231657,ms,41,period_ms=50;deadline_ms=50;session=persistent;mb_op=read;qty=10;status=0;miss=0;wake_late_us=89.437,2026-11-05T09:21:51.237858Z
+C1-x25519-ecdsa-p256-50ms-persist-read-022151,JOSPC-wsl2,P0,C1,x25519,ecdsa-p256,poll_rtt,4,0.147528,ms,41,period_ms=50;deadline_ms=50;session=persistent;mb_op=read;qty=10;status=0,2026-11-05T09:21:51.287878Z
+C1-x25519-ecdsa-p256-50ms-persist-read-022151,JOSPC-wsl2,P0,C1,x25519,ecdsa-p256,poll_resp,4,0.251445,ms,41,period_ms=50;deadline_ms=50;session=persistent;mb_op=read;qty=10;status=0;miss=0;wake_late_us=103.436,2026-11-05T09:21:51.287878Z
+C1-x25519-ecdsa-p256-50ms-persist-read-022151,JOSPC-wsl2,P0,C1,x25519,ecdsa-p256,poll_rtt,5,0.127573,ms,41,period_ms=50;deadline_ms=50;session=persistent;mb_op=read;qty=10;status=0,2026-11-05T09:21:51.337848Z
+C1-x25519-ecdsa-p256-50ms-persist-read-022151,JOSPC-wsl2,P0,C1,x25519,ecdsa-p256,poll_resp,5,0.221370,ms,41,period_ms=50;deadline_ms=50;session=persistent;mb_op=read;qty=10;status=0;miss=0;wake_late_us=93.417,2026-11-05T09:21:51.337848Z
