@@ -41,11 +41,13 @@ accepts only that group, so a mismatch fails loudly instead of silently negotiat
 
 ## C2/C3: post-quantum (Jose's stack)
 
-Build wolfSSL 5.6.3 `--with-liboqs` (liboqs 0.8.0) to its own prefix, put Dilithium chains in `certs/out/<sig>/` with
-the same file names, then:
+`stack/build_pqc.sh` builds liboqs 0.8.0 and wolfSSL 5.6.3 `--with-liboqs` to their own prefixes, applying
+`patches/wolfssl-5.6.3-oqs.patch` (needed for Dilithium certificates) before configure. Then:
 
 ```bash
-make clean && make TLS=1 WOLFSSL_PREFIX=$HOME/pqc/install/wolfssl-5.6.3-oqs
+stack/build_pqc.sh                           # ~5 min; x86_64 and aarch64 (Pi)
+certs/make_dilithium_certs.sh                # Dilithium2/3/5 CA + server + client -> certs/out/dilithium{2,3,5}/
+make clean && make TLS=1 WOLFSSL_PREFIX=$HOME/pqc/install/wolfssl-5.6.3-oqs OQS_PREFIX=$HOME/pqc/install/liboqs-0.8.0
 COND=c2 KEM=kyber768 SIG=dilithium3 CERTS=certs/out/dilithium3 QUICK=1 harness/run_sweep.sh
 COND=c3 KEM=p256_kyber512 SIG=dilithium2 CERTS=certs/out/dilithium2 QUICK=1 harness/run_sweep.sh
 ```

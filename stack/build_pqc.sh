@@ -13,6 +13,17 @@ WOLFSSL_VER=5.6.3
 SRC=${SRC:-$HOME/pqc/src}
 LIBOQS_PREFIX=${LIBOQS_PREFIX:-$HOME/pqc/install/liboqs-$LIBOQS_VER}
 WOLFSSL_PREFIX=${PREFIX:-$HOME/pqc/install/wolfssl-$WOLFSSL_VER-oqs}
+REPO=$(cd "$(dirname "$0")/.." && pwd)
+WOLFSSL_PATCH="$REPO/patches/wolfssl-$WOLFSSL_VER-oqs.patch"
+[ -f "$WOLFSSL_PATCH" ] || { echo "missing $WOLFSSL_PATCH" >&2; exit 1; }
+
+# Debian/Ubuntu keep libcrypto in a per-architecture folder (x86_64-linux-gnu on the PCs,
+# aarch64-linux-gnu on the Pi). Ask the compiler which one this machine uses.
+MULTIARCH=$(gcc -print-multiarch 2>/dev/null || dpkg-architecture -qDEB_HOST_MULTIARCH 2>/dev/null || true)
+SSL_LIBDIR=/usr/lib/$MULTIARCH
+[ -n "$MULTIARCH" ] && [ -e "$SSL_LIBDIR/libcrypto.so" ] || SSL_LIBDIR=/usr/lib
+[ -e "$SSL_LIBDIR/libcrypto.so" ] || { echo "libcrypto.so not found (install libssl-dev)" >&2; exit 1; }
+echo "== OpenSSL libs: $SSL_LIBDIR =="
 mkdir -p "$SRC"
 
 # wolfSSL's ./configure needs `colrm` (Ubuntu/Debian: bsdextrautils) to generate its options header.
@@ -31,12 +42,12 @@ cd liboqs
 rm -rf build   # avoid a stale CMake cache from a previous failed configure
 mkdir -p build && cd build
 # Explicit OpenSSL hints: this environment's CMake doesn't reliably auto-detect the Debian
-# multiarch path (/usr/lib/x86_64-linux-gnu) for libcrypto, even with libssl-dev installed.
+# multiarch path for libcrypto, even with libssl-dev installed.
 cmake -GNinja -DBUILD_SHARED_LIBS=ON \
   -DCMAKE_INSTALL_PREFIX="$LIBOQS_PREFIX" \
   -DOPENSSL_ROOT_DIR=/usr \
-  -DOPENSSL_CRYPTO_LIBRARY=/usr/lib/x86_64-linux-gnu/libcrypto.so \
-  -DOPENSSL_SSL_LIBRARY=/usr/lib/x86_64-linux-gnu/libssl.so \
+  -DOPENSSL_CRYPTO_LIBRARY="$SSL_LIBDIR/libcrypto.so" \
+  -DOPENSSL_SSL_LIBRARY="$SSL_LIBDIR/libssl.so" \
   -DOPENSSL_INCLUDE_DIR=/usr/include \
   ..
 ninja
@@ -52,11 +63,22 @@ cd "$SRC"
 cd wolfssl-$WOLFSSL_VER-oqs
 ./autogen.sh >/dev/null
 
-# Known wolfSSL-5.6.3 / liboqs-0.8.0 mismatch: wolfSSL's SPHINCS+ glue code uses the older
-# "sphincs_shake256_*" liboqs symbol names; 0.8.0 renamed them to "sphincs_shake_*" (dropped the
-# redundant "256"). We don't use SPHINCS+ (only Kyber/Dilithium), so patch the two affected files
-# rather than fight it. Safe to rerun (no-op if already patched).
-sed -i 's/_sphincs_shake256_/_sphincs_shake_/g' wolfssl/wolfcrypt/sphincs.h wolfcrypt/src/sphincs.c
+# Apply our wolfSSL patch (patches/wolfssl-5.6.3-oqs.patch) before configuring. It covers:
+#  - MAX_ENCODED_SIG_SZ too small for Dilithium signatures (asn.h)
+#  - Dilithium support in EncodePublicKey, needed to issue Dilithium certs (asn.c)
+#  - SPHINCS+ glue using liboqs's pre-0.8.0 "sphincs_shake256_*" names (sphincs.c/.h);
+#    this used to be a sed here, now it's part of the patch
+# Safe to rerun: skipped if already applied. A tree from the old sed-only script gets the two
+# sphincs files restored to stock first, since the patch makes the same change.
+if git apply --reverse --check "$WOLFSSL_PATCH" 2>/dev/null; then
+  echo "== wolfSSL patch already applied =="
+else
+  if ! git apply --check "$WOLFSSL_PATCH" 2>/dev/null; then
+    git checkout -- wolfssl/wolfcrypt/sphincs.h wolfcrypt/src/sphincs.c
+  fi
+  git apply "$WOLFSSL_PATCH"
+  echo "== wolfSSL patch applied =="
+fi
 
 ./configure --prefix="$WOLFSSL_PREFIX" \
   --enable-tls13 --enable-ecc --enable-curve25519 --enable-aesgcm --enable-sha384 --enable-sha512 \
@@ -70,9 +92,6 @@ echo "== wolfSSL $WOLFSSL_VER (+liboqs) installed to $WOLFSSL_PREFIX =="
 grep LIBWOLFSSL_VERSION_STRING "$WOLFSSL_PREFIX/include/wolfssl/version.h"
 
 echo
-echo "Smoke test (run from $SRC/wolfssl-$WOLFSSL_VER-oqs, examples stay in the source tree):"
-echo "  export LD_LIBRARY_PATH=$LIBOQS_PREFIX/lib:$WOLFSSL_PREFIX/lib:\$LD_LIBRARY_PATH"
-echo "  examples/server/server -v 4 --pqc KYBER_LEVEL3 -p 11111 -c certs/server-cert.pem -k certs/server-key.pem -d &"
-echo "  sleep 1 && examples/client/client -v 4 --pqc KYBER_LEVEL3 -p 11111 -h 127.0.0.1 -d"
-echo "  (note: -d skips cert verification — full Dilithium-signed mutual auth needs the PQ cert"
-echo "   chain from row 7, not built yet; -c/-k use wolfSSL's bundled classical test cert for now)"
+echo "Next, from the repo root:"
+echo "  certs/make_dilithium_certs.sh"
+echo "  make clean && make TLS=1 WOLFSSL_PREFIX=$WOLFSSL_PREFIX OQS_PREFIX=$LIBOQS_PREFIX"
