@@ -5,6 +5,12 @@
 #
 #   stack/build_pqc.sh                         # installs to ~/pqc/install/wolfssl-5.6.3-oqs
 #   PREFIX=/opt/wolfssl-oqs stack/build_pqc.sh
+#   SP=1 SKIP_LIBOQS=1 stack/build_pqc.sh      # optimized ECC build -> ~/pqc/install/wolfssl-5.6.3-oqs-sp
+#
+# SP=1 turns on wolfSSL's optimized ECC/X25519 code (--enable-sp --enable-sp-asm, plus --enable-intelasm
+# on x86_64). Without it, P-256 runs on generic big-number math, about 25x slower than with it, while
+# liboqs always uses its AVX2/NEON code. Use ONE SP=1 build for every condition (C1, C2, C3) so the
+# classical-vs-PQC comparison is like for like.
 #
 # Needs: git build-essential cmake ninja-build autoconf automake libtool libssl-dev
 set -euo pipefail
@@ -12,7 +18,15 @@ LIBOQS_VER=0.8.0
 WOLFSSL_VER=5.6.3
 SRC=${SRC:-$HOME/pqc/src}
 LIBOQS_PREFIX=${LIBOQS_PREFIX:-$HOME/pqc/install/liboqs-$LIBOQS_VER}
-WOLFSSL_PREFIX=${PREFIX:-$HOME/pqc/install/wolfssl-$WOLFSSL_VER-oqs}
+SP=${SP:-0}
+SUFFIX=""; SP_FLAGS=()
+if [ "$SP" = 1 ]; then
+  SUFFIX=-sp
+  SP_FLAGS=(--enable-sp --enable-sp-asm)
+  [ "$(uname -m)" = x86_64 ] && SP_FLAGS+=(--enable-intelasm)
+fi
+WOLFSSL_PREFIX=${PREFIX:-$HOME/pqc/install/wolfssl-$WOLFSSL_VER-oqs$SUFFIX}
+WOLFSSL_SRC=wolfssl-$WOLFSSL_VER-oqs$SUFFIX
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 WOLFSSL_PATCH="$REPO/patches/wolfssl-$WOLFSSL_VER-oqs.patch"
 [ -f "$WOLFSSL_PATCH" ] || { echo "missing $WOLFSSL_PATCH" >&2; exit 1; }
@@ -37,6 +51,9 @@ export PATH="$SRC/.shim:$PATH"
 cd "$SRC"
 
 ### 1. liboqs ###
+if [ "${SKIP_LIBOQS:-0}" = 1 ] && [ -f "$LIBOQS_PREFIX/lib/liboqs.so" ]; then
+  echo "== SKIP_LIBOQS=1: using existing liboqs in $LIBOQS_PREFIX =="
+else
 [ -d liboqs ] || git clone --branch $LIBOQS_VER https://github.com/open-quantum-safe/liboqs.git
 cd liboqs
 rm -rf build   # avoid a stale CMake cache from a previous failed configure
@@ -56,11 +73,12 @@ echo "== liboqs $LIBOQS_VER installed to $LIBOQS_PREFIX =="
 echo "-- smoke test (Kyber768 / Dilithium3) --"
 ./tests/speed_kem -d 1 kyber768
 ./tests/speed_sig -d 1 dilithium3
+fi
 
 ### 2. wolfSSL, built against liboqs ###
 cd "$SRC"
-[ -d wolfssl-$WOLFSSL_VER-oqs ] || git clone --branch v$WOLFSSL_VER-stable https://github.com/wolfSSL/wolfssl.git wolfssl-$WOLFSSL_VER-oqs
-cd wolfssl-$WOLFSSL_VER-oqs
+[ -d "$WOLFSSL_SRC" ] || git clone --branch v$WOLFSSL_VER-stable https://github.com/wolfSSL/wolfssl.git "$WOLFSSL_SRC"
+cd "$WOLFSSL_SRC"
 ./autogen.sh >/dev/null
 
 # Apply our wolfSSL patch (patches/wolfssl-5.6.3-oqs.patch) before configuring. It covers:
@@ -84,7 +102,7 @@ fi
   --enable-tls13 --enable-ecc --enable-curve25519 --enable-aesgcm --enable-sha384 --enable-sha512 \
   --enable-supportedcurves --enable-session-ticket --enable-certgen --enable-certext \
   --disable-oldtls --disable-crypttests \
-  --with-liboqs="$LIBOQS_PREFIX" \
+  --with-liboqs="$LIBOQS_PREFIX" "${SP_FLAGS[@]}" \
   CFLAGS="-O2"
 make -j"$(nproc)"
 make install
