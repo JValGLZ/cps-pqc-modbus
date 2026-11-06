@@ -13,11 +13,12 @@ for path in files:
         for r in csv.DictReader(f):
             if r["phase"] != "MICRO":
                 continue
-            key = (r["host"], r["op"])
+            build = "sp" if "wolfssl_sp_asm=1" in r["notes"] else "generic"
+            key = (f'{r["host"]} [{build} ECC]', r["op"])
             vals[key].append(float(r["value"]))
             if r["bytes"]:
                 size[key] = r["bytes"]
-            notes[r["host"]] = ";".join(kv for kv in r["notes"].split(";") if not kv.startswith("iters="))
+            notes[key[0]] = ";".join(kv for kv in r["notes"].split(";") if not kv.startswith("iters="))
 
 rows = []
 for (host, op), xs in vals.items():
