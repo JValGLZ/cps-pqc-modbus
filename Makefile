@@ -6,7 +6,10 @@
 CC      ?= gcc
 CFLAGS  ?= -O2 -g -Wall -Wextra -std=c11
 
-LDLIBS  += -lm
+# -pthread: mb_server's sensor thread. glibc >= 2.34 (Debian 12, Ubuntu 22.04+) has pthreads in
+# libc so it links either way; glibc 2.31 (Debian 11, JOSPC-wsl2) needs it explicitly.
+CFLAGS  += -pthread
+LDLIBS  += -lm -pthread
 
 ifeq ($(TLS),1)
   WOLFSSL_PREFIX ?= $(HOME)/pqc/install/wolfssl-5.6.3
