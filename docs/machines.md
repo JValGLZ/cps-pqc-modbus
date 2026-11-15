@@ -26,3 +26,14 @@
 - gcc: 12.2.0
 - wolfSSL: "5.6.3"
 
+## pi3  (2026-11-15)
+- CPU: Cortex-A53 — 4 logical CPUs
+- Kernel: Linux 6.18.50+rpt-rpi-v8 aarch64
+- OS: Debian GNU/Linux 13 (trixie)
+- Virtualization: none
+unknown
+- Governor: performance
+- Turbo/boost flag: 0
+- gcc: 14.2.0
+- wolfSSL: "5.6.3"
+
