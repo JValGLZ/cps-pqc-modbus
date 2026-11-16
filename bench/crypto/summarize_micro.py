@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """Row 5 table: mean +/- std (across runs) of us/op per primitive, from kem_dsa_bench CSVs.
-Usage: bench/crypto/summarize_micro.py FILE.csv [...]   (or a glob like "results/raw/**/MICRO-*.csv")"""
+Usage: bench/crypto/summarize_micro.py FILE.csv [...] [--out SUMMARY.csv]   (or a glob like "results/raw/**/MICRO-*.csv")"""
 import csv, glob, os, statistics, sys
 from collections import defaultdict
 
-files = [f for a in sys.argv[1:] for f in (glob.glob(a, recursive=True) or [a])]
+args = sys.argv[1:]
+out = "results/summary/table_micro_kem_dsa.csv"
+if "--out" in args:
+    i = args.index("--out"); out = args[i + 1]; del args[i:i + 2]
+files = [f for a in args for f in (glob.glob(a, recursive=True) or [a])]
 if not files:
     sys.exit(__doc__)
 vals, size, notes = defaultdict(list), {}, {}
@@ -29,7 +33,6 @@ order = ["kyber512", "kyber768", "kyber1024", "x25519", "p256", "dilithium2", "d
 ops = ["keygen", "encaps", "decaps", "derive", "sign", "verify"]
 rows.sort(key=lambda r: (r["host"], order.index(r["alg"]) if r["alg"] in order else 99, ops.index(r["op"]) if r["op"] in ops else 99))
 
-out = "results/summary/table_micro_kem_dsa.csv"
 os.makedirs(os.path.dirname(out), exist_ok=True)
 with open(out, "w", newline="") as f:
     w = csv.DictWriter(f, fieldnames=list(rows[0]))

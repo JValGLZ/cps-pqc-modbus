@@ -19,4 +19,6 @@ dir=results/raw/$host/$(date +%F)
 mkdir -p "$dir"
 out=$dir/MICRO-kem-dsa-$(date +%H%M%S).csv
 bin/kem_dsa_bench --runs "$RUNS" --iters "$ITERS" --cpu "$CPU" --out "$out"
-python3 bench/crypto/summarize_micro.py "$out"
+# per-host summary, so the shared multi-host table is only rebuilt on purpose:
+#   python3 bench/crypto/summarize_micro.py "results/raw/**/MICRO-*.csv"
+python3 bench/crypto/summarize_micro.py "$out" --out "results/summary/table_micro_kem_dsa_$host.csv"
