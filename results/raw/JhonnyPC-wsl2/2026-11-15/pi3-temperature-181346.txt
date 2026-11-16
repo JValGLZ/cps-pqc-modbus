@@ -1,0 +1,1 @@
+unix_time,temp_millicelsius,throttled_flags
